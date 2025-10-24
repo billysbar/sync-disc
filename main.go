@@ -12,21 +12,21 @@ import (
 
 func main() {
 	var sourceDir, destDir string
-	var dryRun, summary bool
+	var dryRun, verbose bool
 
 	flag.StringVar(&sourceDir, "source", "", "Source directory to copy files from")
 	flag.StringVar(&destDir, "dest", "", "Destination directory to copy files to")
 	flag.BoolVar(&dryRun, "dry-run", false, "Perform a dry run - show what would be copied without actually copying")
-	flag.BoolVar(&summary, "summary", false, "Show directory-level summary instead of individual files (use with -dry-run)")
+	flag.BoolVar(&verbose, "verbose", false, "Show individual files instead of directory-level summary (use with -dry-run)")
 	flag.Parse()
 
 	if sourceDir == "" || destDir == "" {
-		fmt.Printf("Usage: %s -source /path/to/source -dest /path/to/destination [-dry-run] [-summary]\n", os.Args[0])
+		fmt.Printf("Usage: %s -source /path/to/source -dest /path/to/destination [-dry-run] [-verbose]\n", os.Args[0])
 		fmt.Println("\nThis tool copies all files from source to destination, skipping files that already exist in destination.")
 		fmt.Println("Directory structure is preserved.")
 		fmt.Println("\nOptions:")
-		fmt.Println("  -dry-run    Show what would be copied without actually copying")
-		fmt.Println("  -summary    Show directory-level summary instead of individual files (use with -dry-run)")
+		fmt.Println("  -dry-run    Show what would be copied without actually copying (shows summary by default)")
+		fmt.Println("  -verbose    Show individual files instead of directory-level summary (use with -dry-run)")
 		os.Exit(1)
 	}
 
@@ -45,13 +45,13 @@ func main() {
 	fmt.Printf("📁 Destination: %s\n", destDir)
 	if dryRun {
 		fmt.Println("🔍 DRY RUN MODE - No files will be copied")
-		if summary {
+		if !verbose {
 			fmt.Println("📋 SUMMARY MODE - Showing directory-level overview")
 		}
 	}
 	fmt.Println()
 
-	err := copyFiles(sourceDir, destDir, dryRun, summary)
+	err := copyFiles(sourceDir, destDir, dryRun, verbose)
 	if err != nil {
 		fmt.Printf("❌ Error: %v\n", err)
 		os.Exit(1)
@@ -84,11 +84,13 @@ type dirStats struct {
 }
 
 // copyFiles walks through the source directory and copies files that don't exist in destination
-func copyFiles(sourceDir, destDir string, dryRun, summary bool) error {
+func copyFiles(sourceDir, destDir string, dryRun, verbose bool) error {
 	var filesCopied, filesSkipped int
 	var totalBytes int64
 
-	// For summary mode, track stats by directory
+	// For summary mode (default in dry-run), track stats by directory
+	// Summary mode is enabled when dryRun is true and verbose is false
+	summary := dryRun && !verbose
 	dirStatsMap := make(map[string]*dirStats)
 
 	err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
@@ -177,14 +179,10 @@ func copyFiles(sourceDir, destDir string, dryRun, summary bool) error {
 
 		for _, dir := range dirs {
 			stats := dirStatsMap[dir]
-			if stats.fileCount > 0 || stats.skippedCount > 0 {
+			// Only show directories that have files to copy (skip directories with only existing files)
+			if stats.fileCount > 0 {
 				fmt.Printf("📂 %s\n", stats.path)
-				if stats.fileCount > 0 {
-					fmt.Printf("   ✅ Would copy: %d files (%.2f MB)\n", stats.fileCount, float64(stats.totalBytes)/(1024*1024))
-				}
-				if stats.skippedCount > 0 {
-					fmt.Printf("   ⏭️  Would skip: %d files (already exist)\n", stats.skippedCount)
-				}
+				fmt.Printf("   ✅ Would copy: %d files (%.2f MB)\n", stats.fileCount, float64(stats.totalBytes)/(1024*1024))
 				fmt.Println()
 			}
 		}
