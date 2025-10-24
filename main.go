@@ -56,6 +56,13 @@ func main() {
 		fmt.Printf("❌ Error: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Beep to indicate completion
+	fmt.Print("\a")
+	time.Sleep(200 * time.Millisecond)
+	fmt.Print("\a")
+	time.Sleep(200 * time.Millisecond)
+	fmt.Print("\a")
 }
 
 // validateDirectory checks if a directory exists and is accessible
