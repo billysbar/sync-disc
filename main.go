@@ -57,6 +57,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Clean up small files in destination (only during actual sync, not dry-run)
+	if !dryRun {
+		err = cleanupSmallFiles(destDir)
+		if err != nil {
+			fmt.Printf("❌ Cleanup error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	// Beep to indicate completion
 	fmt.Print("\a")
 	time.Sleep(200 * time.Millisecond)
@@ -245,6 +254,45 @@ func copyFile(src, dst string) error {
 	err = os.Chmod(dst, srcInfo.Mode())
 	if err != nil {
 		return fmt.Errorf("failed to set file permissions: %v", err)
+	}
+
+	return nil
+}
+
+// cleanupSmallFiles walks through the destination directory and deletes files smaller than 10KB
+func cleanupSmallFiles(destDir string) error {
+	const minSize = 10240 // 10KB in bytes
+	var filesDeleted int
+
+	err := filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Continue walking
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Delete files smaller than 10KB
+		if info.Size() < minSize {
+			if err := os.Remove(path); err != nil {
+				// Continue even if deletion fails
+				return nil
+			}
+			filesDeleted++
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("Error walking destination directory: %v", err)
+	}
+
+	// Print summary
+	if filesDeleted > 0 {
+		fmt.Printf("\n🧹 Cleanup: Deleted %d files under 10KB\n", filesDeleted)
 	}
 
 	return nil
